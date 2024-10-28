@@ -53,6 +53,27 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
 
 #pragma mark - Password check
 
+#define STR(...) [NSString stringWithFormat:__VA_ARGS__]
+#define LOG(args, ...) SSZipArchive.logger(STR(@"[SSZipArchive] [%d] %@", __LINE__, STR(args, ##__VA_ARGS__)))
+
+static void (^st_logger)(NSString *input);
+
++ (void (^)(NSString * _Nonnull))logger {
+    return st_logger;
+}
+
++ (void)setLogger:(void (^)(NSString * _Nonnull))logger {
+    if (logger == NULL) {
+        st_logger = ^(NSString *s) {};
+    } else {
+        st_logger = [logger copy];
+    }
+}
+
++ (void)initialize {
+    [self setLogger:^(NSString *s) {}];
+}
+
 + (BOOL)isFilePasswordProtectedAtPath:(NSString *)path {
     // Begin opening
     zipFile zip = unzOpen(path.fileSystemRepresentation);
@@ -520,6 +541,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
                     break;
                 }
                 NSLog(@"[SSZipArchive] Error: %@", err.localizedDescription);
+                LOG(@"Error: %@", err.localizedDescription);
             }
             
             if ([fileManager fileExistsAtPath:fullPath] && !isDirectory && !overwrite) {
@@ -542,6 +564,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
                                 if (ferror(fp)) {
                                     NSString *message = [NSString stringWithFormat:@"Failed to write file (check your free space)"];
                                     NSLog(@"[SSZipArchive] %@", message);
+                                    LOG(@"%@", message);
                                     success = NO;
                                     unzippingError = [NSError errorWithDomain:@"SSZipArchiveErrorDomain" code:SSZipArchiveErrorCodeFailedToWriteFile userInfo:@{NSLocalizedDescriptionKey: message}];
                                     break;
@@ -587,6 +610,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
                                     if (![fileManager setAttributes:attr ofItemAtPath:fullPath error:nil]) {
                                         // Can't set attributes
                                         NSLog(@"[SSZipArchive] Failed to set attributes - whilst setting modification date");
+                                        LOG(@"Failed to set attributes - whilst setting modification date");
                                     }
                                 }
                             }
@@ -607,6 +631,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
                                 if (![fileManager setAttributes:attrs ofItemAtPath:fullPath error:nil]) {
                                     // Unable to set the permissions attribute
                                     NSLog(@"[SSZipArchive] Failed to set attributes - whilst setting permissions");
+                                    LOG(@"Failed to set attributes - whilst setting permissions");
                                 }
                             }
                         }
@@ -638,6 +663,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
                                                                            code:errnoSave
                                                                        userInfo:nil];
                                 NSLog(@"[SSZipArchive] Failed to open file on unzipping.(%@)", errorObject);
+                                LOG(@"Failed to open file on unzipping.(%@)", errorObject);
                             }
                                 break;
                         }
@@ -650,7 +676,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
                             unzCloseCurrentFile(zip);
                             // Log the error
                             NSLog(@"[SSZipArchive] Failed to open file on unzipping.(%@)", unzippingError);
-
+                            LOG(@"Failed to open file on unzipping.(%@)", unzippingError);
                             // Break unzipping
                             success = NO;
                             break;
@@ -1075,6 +1101,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
 - (BOOL)open
 {
     NSAssert((_zip == NULL), @"Attempting to open an archive which is already open");
+    LOG(@"Attempting to open an archive which is already open");
     _zip = zipOpen(_path.fileSystemRepresentation, APPEND_STATUS_CREATE);
     return (NULL != _zip);
 }
@@ -1082,6 +1109,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
 - (BOOL)openForAppending
 {
     NSAssert((_zip == NULL), @"Attempting to open an archive which is already open");
+    LOG(@"Attempting to open an archive which is already open");
     _zip = zipOpen(_path.fileSystemRepresentation, APPEND_STATUS_ADDINZIP);
     return (NULL != _zip);
 }
@@ -1089,6 +1117,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
 - (BOOL)writeFolderAtPath:(NSString *)path withFolderName:(NSString *)folderName withPassword:(nullable NSString *)password
 {
     NSAssert((_zip != NULL), @"Attempting to write to an archive which was never opened");
+    LOG(@"Attempting to open an archive which is already open");
     
     zip_fileinfo zipInfo = {};
     
@@ -1117,7 +1146,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
 - (BOOL)writeFileAtPath:(NSString *)path withFileName:(nullable NSString *)fileName compressionLevel:(int)compressionLevel password:(nullable NSString *)password AES:(BOOL)aes
 {
     NSAssert((_zip != NULL), @"Attempting to write to an archive which was never opened");
-    
+    LOG(@"Attempting to write to an archive which was never opened");
     FILE *input = fopen(path.fileSystemRepresentation, "r");
     if (NULL == input) {
         return NO;
@@ -1179,6 +1208,7 @@ static bool filenameIsDirectory(const char *filename, uint16_t size)
 - (BOOL)close
 {
     NSAssert((_zip != NULL), @"[SSZipArchive] Attempting to close an archive which was never opened");
+    LOG(@"Attempting to close an archive which was never opened");
     int error = zipClose(_zip, NULL);
     _zip = nil;
     return error == ZIP_OK;
